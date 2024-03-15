@@ -6,6 +6,19 @@ static constexpr float SCREEN_SIZE_OVER_TWO = SCREEN_SIZE / 2.f;
 static constexpr float SCREEN_SIZE_OVER_FOUR = SCREEN_SIZE_OVER_TWO / 2.f;
 static constexpr float HACKY_EPSILON = SCREEN_SIZE / 1000.f;
 
+static const sf::Color RAINBOW[]
+{
+	sf::Color{245, 66, 66},
+	sf::Color{245, 173, 66},
+	sf::Color{245, 239, 66},
+	sf::Color{141, 245, 66},
+	sf::Color{66, 245, 230},
+	sf::Color{71, 38, 255},
+	sf::Color{100, 0, 181},
+};
+
+static constexpr int RAINBOW_SIZE = std::size(RAINBOW);
+
 
 float Distance(const sf::Vector2f& a, const sf::Vector2f& b)
 {
@@ -16,8 +29,9 @@ float Distance(const sf::Vector2f& a, const sf::Vector2f& b)
 class Circle final
 {
 public:
-	Circle(const float curvature, const float x, const float y) :
-		m_curvature(curvature)
+	Circle(const float curvature, const float x, const float y, int colourIndex) :
+		m_curvature(curvature),
+		m_colourIndex(colourIndex)
 	{
 		m_radius = std::abs(1.f / m_curvature);
 		m_centre = std::complex<float>(x, y);
@@ -43,11 +57,17 @@ public:
 		return m_radius;
 	}
 
+	int GetColourIndex() const
+	{
+		return m_colourIndex;
+	}
+
 
 private:
 	float m_curvature;
 	float m_radius;
 	std::complex<float> m_centre;
+	int m_colourIndex;
 };
 
 struct DescartesValue
@@ -97,7 +117,7 @@ ComplexDescartesValue ComplexDescartes(const Circle& c1, const Circle& c2, const
 	};
 }
 
-std::vector<Circle> GenerateCircles(const DescartesValue& dv, const ComplexDescartesValue& cdv)
+std::vector<Circle> GenerateCircles(const DescartesValue& dv, const ComplexDescartesValue& cdv, const int currentColour)
 {
 	const std::complex<float> centre1 = cdv.m_PositiveValue.first;
 	const std::complex<float> centre2 = cdv.m_PositiveValue.second;
@@ -105,10 +125,10 @@ std::vector<Circle> GenerateCircles(const DescartesValue& dv, const ComplexDesca
 	const std::complex<float> centre4 = cdv.m_NegativeValue.second;
 
 	return {
-		Circle(dv.m_PositiveValue, centre1.real(), centre1.imag()),
-		Circle(dv.m_PositiveValue, centre2.real(), centre2.imag()),
-		Circle(dv.m_NegativeValue, centre3.real(), centre3.imag()),
-		Circle(dv.m_NegativeValue, centre4.real(), centre4.imag()),
+		Circle(dv.m_PositiveValue, centre1.real(), centre1.imag(), currentColour),
+		Circle(dv.m_PositiveValue, centre2.real(), centre2.imag(), currentColour),
+		Circle(dv.m_NegativeValue, centre3.real(), centre3.imag(), currentColour),
+		Circle(dv.m_NegativeValue, centre4.real(), centre4.imag(), currentColour),
 	};
 }
 
@@ -154,6 +174,8 @@ bool ValidateCircle(const std::vector<Circle>& allCircles, const Circle& newCirc
 
 void AddTriplet(std::vector<Circle>& allCircles, std::vector<CircleTriplet>& circleQueue)
 {
+	static int COLOUR_INDEX = 1;
+
 	std::vector<CircleTriplet> newVector;
 	for (auto& triplet : circleQueue)
 	{
@@ -164,7 +186,7 @@ void AddTriplet(std::vector<Circle>& allCircles, std::vector<CircleTriplet>& cir
 		DescartesValue k4 = Descartes(c1, c2, c3);
 		ComplexDescartesValue complexDescartesValue = ComplexDescartes(c1, c2, c3, k4);
 
-		auto newCircles = GenerateCircles(k4, complexDescartesValue);
+		auto newCircles = GenerateCircles(k4, complexDescartesValue, COLOUR_INDEX);
 
 		for (auto& new_ : newCircles)
 		{
@@ -184,6 +206,8 @@ void AddTriplet(std::vector<Circle>& allCircles, std::vector<CircleTriplet>& cir
 	}
 
 	circleQueue = newVector;
+
+	COLOUR_INDEX = (COLOUR_INDEX + 1) % RAINBOW_SIZE;
 }
 
 int main()
@@ -193,9 +217,9 @@ int main()
 	window.setFramerateLimit(60);
 
 
-	Circle c1(-1.f / SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO);
-	Circle c2(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO);
-	Circle c3(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO + SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO);
+	Circle c1(-1.f / SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO, 0);
+	Circle c2(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO, 0);
+	Circle c3(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO + SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO, 0);
 
 	std::vector<Circle> allCircles{ c1, c2, c3 };
 
@@ -205,8 +229,7 @@ int main()
 	sf::CircleShape circleShape;
 
 	circleShape.setFillColor(sf::Color::Transparent);
-	circleShape.setOutlineColor(sf::Color::Black);
-	circleShape.setOutlineThickness(1.f);
+	circleShape.setOutlineThickness(1.5f);
 
 	while (window.isOpen())
 	{
@@ -225,13 +248,14 @@ int main()
 			}
 		}
 
-		window.clear(sf::Color::White);
+		window.clear(sf::Color::Black);
 
 		for (const auto& circle : allCircles)
 		{
 			circleShape.setRadius(circle.GetRadius());
 			circleShape.setPosition(circle.GetCentreAsVector());
 			circleShape.setOrigin(circle.GetRadius(), circle.GetRadius());
+			circleShape.setOutlineColor(RAINBOW[circle.GetColourIndex()]);
 
 			window.draw(circleShape);
 		}
