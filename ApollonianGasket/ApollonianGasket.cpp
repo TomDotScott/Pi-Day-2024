@@ -1,15 +1,17 @@
-#include <iostream>
 #include <SFML/Graphics.hpp>
 #include <complex>
-#include <deque>
+
+static constexpr float SCREEN_SIZE = 960.f;
+static constexpr float SCREEN_SIZE_OVER_TWO = SCREEN_SIZE / 2.f;
+static constexpr float SCREEN_SIZE_OVER_FOUR = SCREEN_SIZE_OVER_TWO / 2.f;
+static constexpr float HACKY_EPSILON = SCREEN_SIZE / 1000.f;
+
 
 float Distance(const sf::Vector2f& a, const sf::Vector2f& b)
 {
 	const sf::Vector2f c = b - a;
 	return std::sqrt(c.x * c.x + c.y * c.y);
 }
-
-static constexpr float HACKY_EPSILON = 1.f;
 
 class Circle final : public sf::CircleShape
 {
@@ -188,14 +190,14 @@ void AddTriplet(std::vector<Circle>& allCircles, std::vector<CircleTriplet>& cir
 
 int main()
 {
-	sf::RenderWindow window(sf::VideoMode(400, 400), "Apollonian Gasket");
+	sf::RenderWindow window(sf::VideoMode(static_cast<unsigned>(SCREEN_SIZE), static_cast<unsigned>(SCREEN_SIZE)), "Apollonian Gasket");
 
 	window.setFramerateLimit(60);
 
 
-	Circle c1(-1.f / 200.f, 200, 200.f);
-	Circle c2(1.f / 100.f, 100.f, 200.f);
-	Circle c3(1.f / 100.f, 300.f, 200.f);
+	Circle c1(-1.f / SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO, SCREEN_SIZE_OVER_TWO);
+	Circle c2(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO);
+	Circle c3(1.f / SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO + SCREEN_SIZE_OVER_FOUR, SCREEN_SIZE_OVER_TWO);
 
 	std::vector<Circle> allCircles{ c1, c2, c3 };
 
