@@ -1,11 +1,20 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include <complex>
+#include <deque>
+
+float Distance(const sf::Vector2f& a, const sf::Vector2f& b)
+{
+    const sf::Vector2f c = b - a;
+    return std::sqrt(c.x * c.x + c.y * c.y);
+}
+
+static constexpr float HACKY_EPSILON = 1.f;
 
 class Circle final : public sf::CircleShape
 {
 public:
-    explicit Circle(const float curvature, float x, float y) :
+	Circle(const float curvature, const float x, const float y) :
 		m_curvature(curvature)
     {
         setRadius(std::abs(1.f / m_curvature));
@@ -29,6 +38,12 @@ public:
     {
         return m_centre;
     }
+
+    sf::Vector2f GetCentreAsVector() const
+    {
+        return { m_centre.real(), m_centre.imag() };
+    }
+
 
 private:
     float m_curvature;
@@ -55,8 +70,8 @@ DescartesValue Descartes(const Circle& c1, const Circle& c2, const Circle& c3)
 
 struct ComplexDescartesValue
 {
-    std::pair<std::complex<float>, std::complex<float>> m_k0;
-    std::pair<std::complex<float>, std::complex<float>> m_k1;
+    std::pair<std::complex<float>, std::complex<float>> m_PositiveValue;
+    std::pair<std::complex<float>, std::complex<float>> m_NegativeValue;
 };
 
 ComplexDescartesValue ComplexDescartes(const Circle& c1, const Circle& c2, const Circle& c3, const DescartesValue& k4)
@@ -84,17 +99,91 @@ ComplexDescartesValue ComplexDescartes(const Circle& c1, const Circle& c2, const
 
 std::vector<Circle> GenerateCircles(const DescartesValue& dv, const ComplexDescartesValue& cdv)
 {
-	const std::complex<float> centre1 = cdv.m_k0.first;
-	const std::complex<float> centre2 = cdv.m_k0.second;
-	const std::complex<float> centre3 = cdv.m_k1.first;
-	const std::complex<float> centre4 = cdv.m_k1.second;
+	const std::complex<float> centre1 = cdv.m_PositiveValue.first;
+	const std::complex<float> centre2 = cdv.m_PositiveValue.second;
+	const std::complex<float> centre3 = cdv.m_NegativeValue.first;
+	const std::complex<float> centre4 = cdv.m_NegativeValue.second;
 
     return {
         Circle(dv.m_PositiveValue, centre1.real(), centre1.imag()),
         Circle(dv.m_PositiveValue, centre2.real(), centre2.imag()),
-        Circle(dv.m_NegativeValue, centre3.real(), centre3.imag()),
-        Circle(dv.m_NegativeValue, centre4.real(), centre4.imag()),
+        //Circle(dv.m_NegativeValue, centre3.real(), centre3.imag()),
+        //Circle(dv.m_NegativeValue, centre4.real(), centre4.imag()),
     };
+}
+
+struct CircleTriplet
+{
+    Circle c1;
+    Circle c2;
+    Circle c3;
+};
+
+bool IsTangent(const Circle& c1, const Circle& c2)
+{
+	const float d = Distance(c1.GetCentreAsVector(), c2.GetCentreAsVector());
+	const float r1 = c1.getRadius();
+	const float r2 = c2.getRadius();
+	const bool a = std::abs(d - (r1 + r2)) < HACKY_EPSILON;
+	const bool b = std::abs(d - abs(r2 - r1)) < HACKY_EPSILON;
+    return a || b;
+}
+
+bool ValidateCircle(const std::vector<Circle>& allCircles, const Circle& newCircle, const CircleTriplet& currentTriplet)
+{
+    if (newCircle.getRadius() < HACKY_EPSILON * 2) return false;
+
+    for (auto& other : allCircles)
+    {
+	    const float dist = Distance(newCircle.GetCentreAsVector(), other.GetCentreAsVector());
+        const float radiusDiff = abs(newCircle.getRadius() - other.getRadius());
+
+        if (dist < HACKY_EPSILON && radiusDiff < HACKY_EPSILON)
+        {
+            return false;
+        }
+    }
+
+    // Check if the circles are mutually tangential
+    if (!IsTangent(newCircle, currentTriplet.c1)) return false;
+    if (!IsTangent(newCircle, currentTriplet.c2)) return false;
+    if (!IsTangent(newCircle, currentTriplet.c3)) return false;
+
+    return true;
+}
+
+void AddTriplet(std::vector<Circle>& allCircles, std::vector<CircleTriplet>& circleQueue)
+{
+    std::vector<CircleTriplet> newVector;
+    for (auto& triplet : circleQueue)
+    {
+        Circle& c1 = triplet.c1;
+        Circle& c2 = triplet.c2;
+        Circle& c3 = triplet.c3;
+
+        DescartesValue k4 = Descartes(c1, c2, c3);
+        ComplexDescartesValue complexDescartesValue = ComplexDescartes(c1, c2, c3, k4);
+
+        auto newCircles = GenerateCircles(k4, complexDescartesValue);
+
+        for (auto& new_ : newCircles)
+        {
+            if (ValidateCircle(allCircles, new_, triplet))
+            {
+                allCircles.emplace_back(new_);
+
+                CircleTriplet newTriplet1{ c1, c2, new_ };
+                CircleTriplet newTriplet2{ c1, c3, new_ };
+                CircleTriplet newTriplet3{ c2, c3, new_ };
+
+                newVector.push_back(newTriplet1);
+                newVector.push_back(newTriplet2);
+                newVector.push_back(newTriplet3);
+            }
+        }
+    }
+
+    circleQueue = newVector;
 }
 
 int main()
@@ -103,12 +192,15 @@ int main()
 
     window.setFramerateLimit(60);
 
+
     Circle c1(-1.f / 200.f, 200, 200.f);
     Circle c2(1.f / 100.f, 100.f, 200.f);
     Circle c3(1.f / 100.f, 300.f, 200.f);
 
-    auto k4 = Descartes(c1, c2, c3);
-    auto circles = GenerateCircles(k4, ComplexDescartes(c1, c2, c3, k4));
+	std::vector<Circle> allCircles {c1, c2, c3};
+
+    std::vector<CircleTriplet> circleQueue;
+	circleQueue.push_back(CircleTriplet{ c1, c2, c3 });
 
     while (window.isOpen())
     {
@@ -117,15 +209,19 @@ int main()
         {
             if (event.type == sf::Event::Closed)
                 window.close();
+
+            if(event.type == sf::Event::KeyReleased)
+            {
+	            if(event.key.code == sf::Keyboard::Key::Space)
+	            {
+                    AddTriplet(allCircles, circleQueue);
+	            }
+            }
         }
 
         window.clear(sf::Color::White);
 
-        window.draw(c1);
-        window.draw(c2);
-        window.draw(c3);
-
-        for (const auto & circle : circles)
+        for (const auto& circle : allCircles)
         {
             window.draw(circle);
         }
