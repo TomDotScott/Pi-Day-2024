@@ -107,8 +107,8 @@ std::vector<Circle> GenerateCircles(const DescartesValue& dv, const ComplexDesca
 	return {
 		Circle(dv.m_PositiveValue, centre1.real(), centre1.imag()),
 		Circle(dv.m_PositiveValue, centre2.real(), centre2.imag()),
-		//Circle(dv.m_NegativeValue, centre3.real(), centre3.imag()),
-		//Circle(dv.m_NegativeValue, centre4.real(), centre4.imag()),
+		Circle(dv.m_NegativeValue, centre3.real(), centre3.imag()),
+		Circle(dv.m_NegativeValue, centre4.real(), centre4.imag()),
 	};
 }
 
