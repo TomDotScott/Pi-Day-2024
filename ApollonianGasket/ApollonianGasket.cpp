@@ -13,22 +13,14 @@ float Distance(const sf::Vector2f& a, const sf::Vector2f& b)
 	return std::sqrt(c.x * c.x + c.y * c.y);
 }
 
-class Circle final : public sf::CircleShape
+class Circle final
 {
 public:
 	Circle(const float curvature, const float x, const float y) :
 		m_curvature(curvature)
 	{
-		setRadius(std::abs(1.f / m_curvature));
-
-		setOrigin(getRadius(), getRadius());
-
+		m_radius = std::abs(1.f / m_curvature);
 		m_centre = std::complex<float>(x, y);
-
-		setPosition({ m_centre.real(), m_centre.imag() });
-		setFillColor(sf::Color::Transparent);
-		setOutlineColor(sf::Color::Black);
-		setOutlineThickness(1.f);
 	}
 
 	float GetCurvature() const
@@ -46,9 +38,15 @@ public:
 		return { m_centre.real(), m_centre.imag() };
 	}
 
+	float GetRadius() const
+	{
+		return m_radius;
+	}
+
 
 private:
 	float m_curvature;
+	float m_radius;
 	std::complex<float> m_centre;
 };
 
@@ -124,8 +122,8 @@ struct CircleTriplet
 bool IsTangent(const Circle& c1, const Circle& c2)
 {
 	const float d = Distance(c1.GetCentreAsVector(), c2.GetCentreAsVector());
-	const float r1 = c1.getRadius();
-	const float r2 = c2.getRadius();
+	const float r1 = c1.GetRadius();
+	const float r2 = c2.GetRadius();
 	const bool a = std::abs(d - (r1 + r2)) < HACKY_EPSILON;
 	const bool b = std::abs(d - abs(r2 - r1)) < HACKY_EPSILON;
 	return a || b;
@@ -133,12 +131,12 @@ bool IsTangent(const Circle& c1, const Circle& c2)
 
 bool ValidateCircle(const std::vector<Circle>& allCircles, const Circle& newCircle, const CircleTriplet& currentTriplet)
 {
-	if (newCircle.getRadius() < HACKY_EPSILON * 2) return false;
+	if (newCircle.GetRadius() < HACKY_EPSILON * 2) return false;
 
 	for (auto& other : allCircles)
 	{
 		const float dist = Distance(newCircle.GetCentreAsVector(), other.GetCentreAsVector());
-		const float radiusDiff = abs(newCircle.getRadius() - other.getRadius());
+		const float radiusDiff = abs(newCircle.GetRadius() - other.GetRadius());
 
 		if (dist < HACKY_EPSILON && radiusDiff < HACKY_EPSILON)
 		{
@@ -204,6 +202,12 @@ int main()
 	std::vector<CircleTriplet> circleQueue;
 	circleQueue.push_back(CircleTriplet{ c1, c2, c3 });
 
+	sf::CircleShape circleShape;
+
+	circleShape.setFillColor(sf::Color::Transparent);
+	circleShape.setOutlineColor(sf::Color::Black);
+	circleShape.setOutlineThickness(1.f);
+
 	while (window.isOpen())
 	{
 		sf::Event event{};
@@ -225,7 +229,11 @@ int main()
 
 		for (const auto& circle : allCircles)
 		{
-			window.draw(circle);
+			circleShape.setRadius(circle.GetRadius());
+			circleShape.setPosition(circle.GetCentreAsVector());
+			circleShape.setOrigin(circle.GetRadius(), circle.GetRadius());
+
+			window.draw(circleShape);
 		}
 
 		window.display();
